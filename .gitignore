@@ -1,0 +1,19 @@
+ECHO is on.
+# Bỏ qua các tệp log
+*.log
+
+# Bỏ qua thư mục build
+/build/
+
+# Bỏ qua các tệp cấu hình môi trường
+.env
+
+# Bỏ qua thư mục IDE hoặc editor (VSCode, IntelliJ...)
+.idea/
+.vscode/
+
+# Bỏ qua các tệp tạm thời của hệ điều hành
+.DS_Store
+Thumbs.db
+.respone.go
+
