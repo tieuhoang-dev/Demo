@@ -104,3 +104,63 @@ func InsertStory(c *gin.Context) {
 		"id":      insertResult.InsertedID,
 	})
 }
+func UpdateStory(c *gin.Context) {
+	if config.MongoDB == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "MongoDB chưa được kết nối"})
+		return
+	}
+	storyCollection := config.MongoDB.Collection("Stories")
+	// Lấy name của truyện từ query parameter
+	StoryName := c.Param("name")
+	if StoryName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "thiếu tên truyện"})
+		return
+	}
+	var updates map[string]interface{}
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(400, gin.H{"error": "Lỗi dữ liệu đầu vào"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	filter := bson.M{"title": StoryName}
+	update := bson.M{"$set": updates}
+	result, err := storyCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể cập nhật truyện"})
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Không tìm thấy truyện"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã cập nhật truyện"})
+}
+func DeleteStory(c *gin.Context) {
+	if config.MongoDB == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "MongoDB chưa được kết nối"})
+		return
+	}
+	storyCollection := config.MongoDB.Collection("Stories")
+	// Lấy name của truyện từ query parameter
+	StoryName := c.Param("name")
+	if StoryName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "thiếu tên truyện"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	filter := bson.M{"title": StoryName}
+	result, err := storyCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể xóa truyện"})
+		return
+	}
+	if result.DeletedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Không tìm thấy truyện"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Xóa Truyện Thành CôngCông"})
+}

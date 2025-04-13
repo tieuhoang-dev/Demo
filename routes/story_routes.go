@@ -12,9 +12,8 @@ func StoryRoutes(router *gin.Engine) {
 	{
 		storyGroup.GET("", controllers.GetStories)                 // GET /stories
 		storyGroup.GET("/search", controllers.SearchStoriesByName) // GET /stories/search?name=abc
-		// storyGroup.GET("/:id", controllers.GetStoryByID)          // GET /stories/:id (nếu cần)
-		storyGroup.POST("", controllers.InsertStory) // POST /stories
-		// storyGroup.PUT("/:id", controllers.UpdateStory)           // PUT /stories/:id
-		// storyGroup.DELETE("/:id", controllers.DeleteStory)        // DELETE /stories/:id
+		storyGroup.POST("", controllers.InsertStory)               // POST /stories
+		storyGroup.PUT("/:name", controllers.UpdateStory)          // PUT /stories/:name
+		storyGroup.DELETE("/:name", controllers.DeleteStory)       // DELETE /stories/:name
 	}
 }
