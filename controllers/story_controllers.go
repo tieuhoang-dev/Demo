@@ -162,5 +162,5 @@ func DeleteStory(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Không tìm thấy truyện"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Xóa Truyện Thành CôngCông"})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Xóa Truyện Thành Công"})
 }
