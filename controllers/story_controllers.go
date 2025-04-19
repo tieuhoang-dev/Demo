@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func GetStories(c *gin.Context) {
@@ -143,24 +144,91 @@ func DeleteStory(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "MongoDB chưa được kết nối"})
 		return
 	}
+
 	storyCollection := config.MongoDB.Collection("Stories")
+	chapterCollection := config.MongoDB.Collection("Chapters")
+
 	// Lấy name của truyện từ query parameter
-	StoryName := c.Param("name")
-	if StoryName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "thiếu tên truyện"})
+	storyName := c.Param("name")
+	if storyName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu tên truyện"})
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	filter := bson.M{"title": StoryName}
-	result, err := storyCollection.DeleteOne(ctx, filter)
+
+	// Trước tiên: tìm truyện để lấy _id
+	var story struct {
+		ID primitive.ObjectID `bson:"_id"`
+	}
+	err := storyCollection.FindOne(ctx, bson.M{"title": storyName}).Decode(&story)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy truyện"})
+		return
+	}
+
+	// Xóa các chương liên quan
+	_, err = chapterCollection.DeleteMany(ctx, bson.M{"StoryID": story.ID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể xóa chương liên quan"})
+		return
+	}
+
+	// Sau đó xóa truyện
+	result, err := storyCollection.DeleteOne(ctx, bson.M{"_id": story.ID})
+	if err != nil || result.DeletedCount == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể xóa truyện"})
 		return
 	}
-	if result.DeletedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"message": "Không tìm thấy truyện"})
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Xóa truyện và chương thành công"})
+}
+
+func GetChaptersByStoryName(c *gin.Context) {
+	if config.MongoDB == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "MongoDB chưa được kết nối"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Xóa Truyện Thành Công"})
+
+	storyCollection := config.MongoDB.Collection("Stories")
+	chapterCollection := config.MongoDB.Collection("Chapters")
+
+	// Lấy name của truyện từ query parameter
+	storyName := c.Query("name")
+	if storyName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "thiếu tên truyện"})
+		return
+	}
+
+	// Tìm truyện theo tên
+	var story struct {
+		ID primitive.ObjectID `bson:"_id"`
+	}
+	err := storyCollection.FindOne(c, bson.M{"title": storyName}).Decode(&story)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy truyện"})
+		return
+	}
+
+	// Tìm các chương theo storyId
+	cursor, err := chapterCollection.Find(c, bson.M{"StoryID": story.ID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể truy vấn chương"})
+		return
+	}
+	defer cursor.Close(c)
+
+	// Load danh sách chương
+	var chapters []bson.M
+	if err = cursor.All(c, &chapters); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi đọc dữ liệu chương"})
+		return
+	}
+
+	// Trả về JSON
+	c.JSON(http.StatusOK, gin.H{
+		"story_id": story.ID.Hex(),
+		"chapters": chapters,
+	})
 }

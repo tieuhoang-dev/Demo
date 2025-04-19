@@ -7,8 +7,13 @@ import (
 )
 
 type Chapter struct {
-	Title   string `bson:"title" json:"title"`
-	Content string `bson:"content" json:"content"`
+	ID             primitive.ObjectID `bson:"_id,omitempty"`
+	StoryID        primitive.ObjectID `bson:"storyId"`
+	Chapter_Number int                `bson:"chapterNumber"`
+	Title          string             `bson:"title"`
+	Content        string             `bson:"content"`
+	CreatedAt      time.Time          `bson:"created_at"`
+	UpdatedAt      time.Time          `bson:"updated_at"`
 }
 
 type Story struct {

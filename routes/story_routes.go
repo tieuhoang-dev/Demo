@@ -15,5 +15,6 @@ func StoryRoutes(router *gin.Engine) {
 		storyGroup.POST("", controllers.InsertStory)               // POST /stories
 		storyGroup.PUT("/:name", controllers.UpdateStory)          // PUT /stories/:name
 		storyGroup.DELETE("/:name", controllers.DeleteStory)       // DELETE /stories/:name
+		storyGroup.GET("/chapter", controllers.GetChaptersByStoryName)
 	}
 }
