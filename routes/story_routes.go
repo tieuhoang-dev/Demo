@@ -10,11 +10,14 @@ func StoryRoutes(router *gin.Engine) {
 
 	storyGroup := router.Group("/stories")
 	{
-		storyGroup.GET("", controllers.GetStories)                 // GET /stories
-		storyGroup.GET("/search", controllers.SearchStoriesByName) // GET /stories/search?name=abc
-		storyGroup.POST("", controllers.InsertStory)               // POST /stories
-		storyGroup.PUT("/:name", controllers.UpdateStory)          // PUT /stories/:name
-		storyGroup.DELETE("/:name", controllers.DeleteStory)       // DELETE /stories/:name
-		storyGroup.GET("/chapter", controllers.GetChaptersByStoryName)
+		storyGroup.GET("", controllers.GetStories)
+		storyGroup.GET("/search", controllers.SearchStoriesByName)
+		storyGroup.POST("", controllers.InsertStory)
+		storyGroup.PUT("/:id", controllers.UpdateStory)
+		storyGroup.DELETE("/:id", controllers.DeleteStory)
+		storyGroup.GET("/:id/chapters", controllers.GetChaptersByStoryID)
+		storyGroup.GET("/filter", controllers.FilterStories)
+		storyGroup.GET("/ranking", controllers.GetTopRankedStories)
+		storyGroup.GET("/:id/export", controllers.ExportStoryChapters)
 	}
 }

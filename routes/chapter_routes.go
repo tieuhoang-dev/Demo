@@ -9,8 +9,10 @@ import (
 func ChapterRoutes(router *gin.Engine) {
 	chapterGroup := router.Group("/stories/chapters")
 	{
-		chapterGroup.POST("", controllers.InsertChapter) // POST /chapters
-		//chapterGroup.PUT("/:chapterId", controllers.UpdateChapter) // PUT /chapters/:chapterId
-		//chapterGroup.DELETE("/:chapterId", controllers.DeleteChapter) // DELETE /chapters/:chapterId
+		chapterGroup.POST("", controllers.InsertChapter)                               // POST /chapters
+		chapterGroup.PUT("/:id", controllers.UpdateChapter)                            // PUT /chapters/:chapterId
+		chapterGroup.DELETE("/:id", controllers.DeleteChapter)                         // DELETE /chapters/:chapterId
+		chapterGroup.GET("/:story_id/:number", controllers.GetChapterByStoryAndNumber) // GET /stories/:story_id/:number
+		chapterGroup.GET("/id/:id", controllers.GetChapterByID)                        // GET /chapters/id/:id
 	}
 }
