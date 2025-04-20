@@ -328,3 +328,25 @@ func ExportStoryChapters(c *gin.Context) {
 		"chapters": chapters,
 	})
 }
+
+// GET /stories/featured
+func GetFeaturedStories(c *gin.Context) {
+	storyCollection := config.MongoDB.Collection("Stories")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cursor, err := storyCollection.Find(ctx, bson.M{"is_featured": true})
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Không thể truy vấn truyện đề cử"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var stories []models.Story
+	if err := cursor.All(ctx, &stories); err != nil {
+		c.JSON(500, gin.H{"error": "Lỗi đọc dữ liệu"})
+		return
+	}
+
+	c.JSON(200, stories)
+}

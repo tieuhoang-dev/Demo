@@ -19,5 +19,6 @@ func StoryRoutes(router *gin.Engine) {
 		storyGroup.GET("/filter", controllers.FilterStories)
 		storyGroup.GET("/ranking", controllers.GetTopRankedStories)
 		storyGroup.GET("/:id/export", controllers.ExportStoryChapters)
+		storyGroup.GET("featured", controllers.GetFeaturedStories)
 	}
 }
