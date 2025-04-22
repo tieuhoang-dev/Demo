@@ -14,6 +14,6 @@ func BookshelfRoutes(router *gin.Engine) {
 
 		bookshelfGroup.POST("", controllers.AddToBookshelf)                  // POST /bookshelf
 		bookshelfGroup.GET("", controllers.GetBookshelf)                     // GET /bookshelf
-		bookshelfGroup.DELETE("/:story_id", controllers.RemoveFromBookshelf) // DELETE /bookshelf/:story_id
+		bookshelfGroup.DELETE("/:story_id", controllers.RemoveFromBookshelf) // DELETE /bookshelf/:story_id	}
 	}
 }
