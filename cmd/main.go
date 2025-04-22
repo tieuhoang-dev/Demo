@@ -26,6 +26,8 @@ func main() {
 	// Gắn các routes
 	routes.StoryRoutes(r)
 	routes.ChapterRoutes(r)
+	routes.UserRoutes(r)
+	routes.BookshelfRoutes(r)
 	// Chạy server tại cổng PORT từ .env
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal("❌ Lỗi khi chạy server:", err)
