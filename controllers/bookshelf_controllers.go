@@ -81,3 +81,128 @@ func AddToBookshelf(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã thêm truyện vào tủ sách"})
 }
+func RemoveFromBookshelf(c *gin.Context) {
+	// 1. Lấy user_id từ context (middleware đã gán)
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy user trong context"})
+		return
+	}
+	userID := userIDValue.(primitive.ObjectID)
+
+	// 2. Nhận dữ liệu từ body
+	var input struct {
+		StoryID string `json:"story_id"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil || input.StoryID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu hoặc sai định dạng story_id"})
+		return
+	}
+
+	// 3. Chuyển story_id sang ObjectID
+	storyObjectID, err := primitive.ObjectIDFromHex(input.StoryID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "story_id không hợp lệ"})
+		return
+	}
+
+	// 4. Xóa khỏi tủ sách
+	collection := config.MongoDB.Collection("Bookshelf")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := collection.DeleteOne(ctx, bson.M{
+		"user_id":  userID,
+		"story_id": storyObjectID,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể xóa khỏi tủ sách"})
+		return
+	}
+
+	if result.DeletedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy truyện trong tủ sách"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã xóa truyện khỏi tủ sách"})
+}
+func GetBookshelf(c *gin.Context) {
+
+	// 1. Lấy user_id từ context (middleware đã gán)
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy user trong context"})
+		return
+	}
+	userID := userIDValue.(primitive.ObjectID)
+
+	// 2. Lấy danh sách truyện trong tủ sách
+	collection := config.MongoDB.Collection("Bookshelf")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cursor, err := collection.Find(ctx, bson.M{"user_id": userID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy tủ sách"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var items []models.BookshelfItem
+	if err = cursor.All(ctx, &items); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy tủ sách"})
+		return
+	}
+
+	c.JSON(http.StatusOK, items)
+}
+func UpdateLastChapter(c *gin.Context) {
+	// 1. Lấy user_id từ context (middleware đã gán)
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy user trong context"})
+		return
+	}
+	userID := userIDValue.(primitive.ObjectID)
+
+	// 2. Nhận dữ liệu từ body
+	var input struct {
+		StoryID       string `json:"story_id"`
+		LastChapterID string `json:"last_chapter_id"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil || input.StoryID == "" || input.LastChapterID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu hoặc sai định dạng story_id hoặc last_chapter_id"})
+		return
+	}
+
+	// 3. Chuyển story_id và last_chapter_id sang ObjectID
+	storyObjectID, err := primitive.ObjectIDFromHex(input.StoryID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "story_id không hợp lệ"})
+		return
+	}
+	lastChapterObjectID, err := primitive.ObjectIDFromHex(input.LastChapterID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "last_chapter_id không hợp lệ"})
+		return
+	}
+	// 4. Cập nhật chương cuối trong tủ sách
+	collection := config.MongoDB.Collection("Bookshelf")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err = collection.UpdateOne(ctx, bson.M{
+		"user_id":  userID,
+		"story_id": storyObjectID,
+	}, bson.M{
+		"$set": bson.M{
+			"chapter_id": lastChapterObjectID,
+			"updated_at": time.Now(),
+		},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể cập nhật chương cuối"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã cập nhật chương cuối"})
+}
