@@ -4,6 +4,7 @@ import (
 	"Truyen_BE/config"
 	"Truyen_BE/models"
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -74,6 +75,8 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 6. Lưu thông tin user vào context
 		c.Set("user_id", user.ID)
+		fmt.Println("✅ Middleware set user_id:", user.ID.Hex())
+
 		c.Set("user_role", user.Role)
 		c.Set("username", user.Username)
 

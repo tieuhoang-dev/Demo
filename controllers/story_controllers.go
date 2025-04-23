@@ -4,6 +4,7 @@ import (
 	"Truyen_BE/config"
 	"Truyen_BE/models"
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -82,10 +83,18 @@ func InsertStory(c *gin.Context) {
 	newStory.ViewCount = 0
 	newStory.IsHidden = false
 	newStory.IsFeatured = false
-
+	newStory.IsBanned = false
+	newStory.DeletedAt = nil
+	newStory.CreatedBy = c.MustGet("user_id").(primitive.ObjectID)
+	newStory.Status = "active" // Hoặc trạng thái mặc định khác
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
+	val, exists := c.Get("user_id")
+	if !exists {
+		fmt.Println("❌ Controller không thấy user_id trong context")
+	} else {
+		fmt.Println("✅ Controller lấy user_id:", val)
+	}
 	storyCollection := config.MongoDB.Collection("Stories")
 	_, err := storyCollection.InsertOne(ctx, newStory)
 	if err != nil {
