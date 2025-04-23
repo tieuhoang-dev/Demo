@@ -168,9 +168,11 @@ func GetChapterByStoryAndNumber(c *gin.Context) {
 	err = chapterCollection.FindOne(ctx, bson.M{
 		"story_id":       storyID,
 		"chapter_number": chapterNumber,
+		"is_Banned":      false,
+		"is_hidden":      false,
 	}).Decode(&chapter)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy chương"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy chương hoặc chương đã bị ẩn/bị cấm"})
 		return
 	}
 	//tăng view cho chương

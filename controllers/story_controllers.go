@@ -20,8 +20,11 @@ func GetStories(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	cursor, err := storyCollection.Find(ctx, bson.M{})
+	filter := bson.M{
+		"is_hidden": false,
+		"is_banned": false,
+	}
+	cursor, err := storyCollection.Find(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi truy vấn MongoDB"})
 		return
@@ -140,6 +143,13 @@ func DeleteStory(c *gin.Context) {
 
 	storyCollection := config.MongoDB.Collection("Stories")
 	chapterCollection := config.MongoDB.Collection("Chapters")
+	bookshelfCollection := config.MongoDB.Collection("Bookshelf")
+	// Xoá truyện trong tủ sách
+	_, err = bookshelfCollection.DeleteMany(ctx, bson.M{"story_id": objectID})
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Không thể xoá truyện trong tủ sách"})
+		return
+	}
 
 	// Xoá các chương trước
 	_, err = chapterCollection.DeleteMany(ctx, bson.M{"story_id": objectID})
@@ -349,4 +359,108 @@ func GetFeaturedStories(c *gin.Context) {
 	}
 
 	c.JSON(200, stories)
+}
+func BanStory(c *gin.Context) {
+	title := c.Param("title")
+	if title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu tên truyện"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	storyCollection := config.MongoDB.Collection("Stories")
+
+	// Gán trạng thái bị ban
+	update := bson.M{
+		"$set": bson.M{
+			"is_banned":  true,
+			"deleted_at": time.Now(),
+		},
+	}
+
+	result, err := storyCollection.UpdateOne(ctx, bson.M{"title": title}, update)
+	if err != nil || result.MatchedCount == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể ban hoặc không tìm thấy truyện"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Truyện đã bị ẩn (soft-delete)"})
+}
+func UnbanStory(c *gin.Context) {
+	title := c.Param("title")
+	if title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu tên truyện"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	storyCollection := config.MongoDB.Collection("Stories")
+
+	// Gán trạng thái không bị ban
+	update := bson.M{
+		"$set": bson.M{
+			"is_banned":  false,
+			"deleted_at": nil,
+		},
+	}
+
+	result, err := storyCollection.UpdateOne(ctx, bson.M{"title": title}, update)
+	if err != nil || result.MatchedCount == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể bỏ ban hoặc không tìm thấy truyện"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Truyện đã được bỏ ban"})
+}
+func DeleteStoryByAuthor(c *gin.Context) {
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không xác định được người dùng"})
+		return
+	}
+	userID := userIDValue.(primitive.ObjectID)
+
+	title := c.Param("title")
+	if title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu tên truyện"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	storyCollection := config.MongoDB.Collection("Stories")
+	chapterCollection := config.MongoDB.Collection("Chapters")
+	bookshelfCollection := config.MongoDB.Collection("Bookshelf")
+
+	// 1. Kiểm tra truyện có tồn tại và đúng tác giả không
+	var story models.Story
+	err := storyCollection.FindOne(ctx, bson.M{
+		"title":      title,
+		"created_by": userID,
+		"is_banned":  true, // ❗ Chỉ cho xóa nếu đã bị ẩn trước
+	}).Decode(&story)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Bạn không có quyền xóa truyện này hoặc truyện chưa bị ẩn"})
+		return
+	}
+
+	// 2. Xóa chương liên quan
+	_, _ = chapterCollection.DeleteMany(ctx, bson.M{"story_id": story.ID})
+
+	// 3. Xóa khỏi tủ sách người dùng
+	_, _ = bookshelfCollection.DeleteMany(ctx, bson.M{"story_id": story.ID})
+
+	// 4. Xóa truyện
+	_, err = storyCollection.DeleteOne(ctx, bson.M{"_id": story.ID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể xóa truyện"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Truyện đã được xóa vĩnh viễn"})
 }

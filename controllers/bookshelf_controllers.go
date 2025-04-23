@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func AddToBookshelf(c *gin.Context) {
@@ -38,6 +39,34 @@ func AddToBookshelf(c *gin.Context) {
 		return
 	}
 
+	// Khởi tạo context
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Kiểm tra xem chương có thuộc truyện không
+	chapterCollection := config.MongoDB.Collection("Chapters")
+	var chapter models.Chapter
+
+	// Cần khai báo lastChapterObjectID nếu sử dụng
+	lastChapterObjectID := primitive.NilObjectID // Nếu không có chapter thì để NilObjectID, hoặc dùng ID cụ thể nếu cần
+	if input.LastChapterID != "" {
+		lastChapterObjectID, err = primitive.ObjectIDFromHex(input.LastChapterID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "last_chapter_id không hợp lệ"})
+			return
+		}
+	}
+
+	// Kiểm tra xem chương có thuộc truyện không
+	err = chapterCollection.FindOne(ctx, bson.M{
+		"_id":      lastChapterObjectID,
+		"story_id": storyObjectID,
+	}).Decode(&chapter)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Chương không thuộc truyện đã chọn"})
+		return
+	}
+
 	// 4. Tạo đối tượng BookshelfItem
 	item := models.BookshelfItem{
 		UserID:    userID,
@@ -59,16 +88,18 @@ func AddToBookshelf(c *gin.Context) {
 
 	// 6. Kiểm tra nếu đã có trong tủ sách rồi
 	collection := config.MongoDB.Collection("Bookshelf")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	var existing models.BookshelfItem
 	err = collection.FindOne(ctx, bson.M{
 		"user_id":  userID,
 		"story_id": storyObjectID,
 	}).Decode(&existing)
 	if err == nil {
+		// Nếu err == nil có nghĩa là đã tìm thấy một item, nên trả về lỗi Conflict
 		c.JSON(http.StatusConflict, gin.H{"error": "Truyện này đã có trong tủ sách"})
+		return
+	} else if err != mongo.ErrNoDocuments {
+		// Kiểm tra nếu lỗi không phải là "NoDocuments" (không tìm thấy bản ghi), tức là có lỗi khác
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi tìm kiếm trong tủ sách"})
 		return
 	}
 
@@ -81,6 +112,7 @@ func AddToBookshelf(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã thêm truyện vào tủ sách"})
 }
+
 func RemoveFromBookshelf(c *gin.Context) {
 	// 1. Lấy user_id từ context (middleware đã gán)
 	userIDValue, exists := c.Get("user_id")
