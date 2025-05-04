@@ -21,6 +21,7 @@ func StoryRoutes(router *gin.Engine) {
 		storyGroup.GET("/ranking", controllers.GetTopRankedStories)
 		storyGroup.GET("/:id/export", controllers.ExportStoryChapters)
 		storyGroup.GET("/featured", controllers.GetFeaturedStories)
+		storyGroup.GET("/:id", controllers.GetStoryContent)
 
 		// ✅ APIs yêu cầu xác thực và vai trò
 		storyGroup.POST("", middlewares.AuthMiddleware(), middlewares.RequireRole("author"), controllers.InsertStory)

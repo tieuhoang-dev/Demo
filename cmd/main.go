@@ -5,6 +5,9 @@ import (
 	"Truyen_BE/routes"
 	"log"
 
+	"time"
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,7 +25,15 @@ func main() {
 
 	// Khởi tạo Gin
 	r := gin.Default()
-
+	// Cấu hình CORS
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"}, // Cho phép FE
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 	// Gắn các routes
 	routes.StoryRoutes(r)
 	routes.ChapterRoutes(r)
