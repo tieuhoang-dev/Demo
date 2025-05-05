@@ -474,33 +474,32 @@ func DeleteStoryByAuthor(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Truyện đã được xóa vĩnh viễn"})
 }
 func GetStoryContent(c *gin.Context) {
-    storyIDStr := c.Param("id")
-    storyID, err := primitive.ObjectIDFromHex(storyIDStr)
-    if err != nil {
-        c.JSON(400, gin.H{"error": "ID không hợp lệ"})
-        return
-    }
+	storyIDStr := c.Param("id")
+	storyID, err := primitive.ObjectIDFromHex(storyIDStr)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "ID không hợp lệ"})
+		return
+	}
 
-    // Log ID truy vấn để kiểm tra
-    fmt.Println("Truy vấn với ID:", storyIDStr)
+	// Log ID truy vấn để kiểm tra
+	fmt.Println("Truy vấn với ID:", storyIDStr)
 
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-    // Kiểm tra lại filter
-    filter := bson.M{
-        "_id": storyID,
-    }
+	// Kiểm tra lại filter
+	filter := bson.M{
+		"_id": storyID,
+	}
 
-    storyCollection := config.MongoDB.Collection("Stories")
-    var story models.Story
-    err = storyCollection.FindOne(ctx, filter).Decode(&story)
-    if err != nil {
-        fmt.Println("Lỗi truy vấn:", err)
-        c.JSON(404, gin.H{"error": "Không tìm thấy truyện"})
-        return
-    }
+	storyCollection := config.MongoDB.Collection("Stories")
+	var story models.Story
+	err = storyCollection.FindOne(ctx, filter).Decode(&story)
+	if err != nil {
+		fmt.Println("Lỗi truy vấn:", err)
+		c.JSON(404, gin.H{"error": "Không tìm thấy truyện"})
+		return
+	}
 
-    c.JSON(200, story)
+	c.JSON(200, story)
 }
-
