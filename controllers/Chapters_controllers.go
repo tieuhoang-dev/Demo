@@ -12,7 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+type ChapterInput struct {
+	StoryID string `json:"story_id"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
+}
 
 // POST /chapters
 func InsertChapter(c *gin.Context) {
@@ -188,7 +195,8 @@ func GetChapterByStoryAndNumber(c *gin.Context) {
 
 // GET /chapters/id/:id
 func GetChapterByID(c *gin.Context) {
-	chapterID, err := primitive.ObjectIDFromHex(c.Param("id"))
+	chapterIDHex := c.Param("id")
+	chapterID, err := primitive.ObjectIDFromHex(chapterIDHex)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID chương không hợp lệ"})
 		return
@@ -197,22 +205,63 @@ func GetChapterByID(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var chapter models.Chapter
 	chapterCollection := config.MongoDB.Collection("Chapters")
+	storyCollection := config.MongoDB.Collection("Stories")
 
-	err = chapterCollection.FindOne(ctx, bson.M{"_id": chapterID}).Decode(&chapter)
+	// Tăng view_count và lấy chương hiện tại
+	var chapter models.Chapter
+	err = chapterCollection.FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": chapterID},
+		bson.M{"$inc": bson.M{"view_count": 1}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&chapter)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy chương"})
 		return
 	}
 
-	// Tăng view
-	_, _ = chapterCollection.UpdateOne(ctx, bson.M{"_id": chapterID}, bson.M{"$inc": bson.M{"view_count": 1}})
-	// Tăng view_count cho truyện tương ứng
-	storyCollection := config.MongoDB.Collection("Stories")
-	_, _ = storyCollection.UpdateOne(ctx,
+	// Tăng view_count cho truyện
+	_, err = storyCollection.UpdateOne(
+		ctx,
 		bson.M{"_id": chapter.StoryID},
 		bson.M{"$inc": bson.M{"view_count": 1}},
 	)
-	c.JSON(http.StatusOK, chapter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi cập nhật lượt xem cho truyện"})
+		return
+	}
+
+	// Tìm chương trước
+	var previousChapter *models.Chapter = nil
+	previousFilter := bson.M{
+		"story_id":       chapter.StoryID,
+		"chapter_number": bson.M{"$lt": chapter.ChapterNumber},
+	}
+	prevOptions := options.FindOne().SetSort(bson.D{{Key: "chapter_number", Value: -1}})
+	var tempPrev models.Chapter
+	err = chapterCollection.FindOne(ctx, previousFilter, prevOptions).Decode(&tempPrev)
+	if err == nil {
+		previousChapter = &tempPrev
+	}
+
+	// Tìm chương sau
+	var nextChapter *models.Chapter = nil
+	nextFilter := bson.M{
+		"story_id":       chapter.StoryID,
+		"chapter_number": bson.M{"$gt": chapter.ChapterNumber},
+	}
+	nextOptions := options.FindOne().SetSort(bson.D{{Key: "chapter_number", Value: 1}})
+	var tempNext models.Chapter
+	err = chapterCollection.FindOne(ctx, nextFilter, nextOptions).Decode(&tempNext)
+	if err == nil {
+		nextChapter = &tempNext
+	}
+
+	// Trả về dữ liệu
+	c.JSON(http.StatusOK, gin.H{
+		"chapter":  chapter,
+		"previous": previousChapter,
+		"next":     nextChapter,
+	})
 }

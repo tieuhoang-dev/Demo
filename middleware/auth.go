@@ -5,6 +5,7 @@ import (
 	"Truyen_BE/models"
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -83,4 +84,10 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 7. Cho đi tiếp
 		c.Next()
 	}
+
+}
+func LoggingMiddleware(c *gin.Context) {
+	log.Printf("Incoming request: %v", c.Request)
+	c.Next() // Tiếp tục tới các middleware hoặc handler tiếp theo
+	log.Printf("Response: %v", c.Writer.Status())
 }
