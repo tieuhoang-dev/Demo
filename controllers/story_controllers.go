@@ -503,3 +503,63 @@ func GetStoryContent(c *gin.Context) {
 
 	c.JSON(200, story)
 }
+func GetGenresWithCount(c *gin.Context) {
+	storyCollection := config.MongoDB.Collection("Stories")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pipeline := []bson.M{
+		{"$unwind": "$genres"},
+		{"$group": bson.M{
+			"_id":   "$genres",
+			"count": bson.M{"$sum": 1},
+		}},
+		{"$sort": bson.M{"count": -1}},
+	}
+
+	cursor, err := storyCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể truy vấn thể loại"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi đọc kết quả"})
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+func GetAllStoriesOfGenre(c *gin.Context) {
+	// Lấy thể loại từ URL
+	genre := c.Param("genre")
+	if genre == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu thể loại"})
+		return
+	}
+
+	// Truy vấn đến MongoDB
+	storyCollection := config.MongoDB.Collection("Stories")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Tạo bộ lọc để tìm truyện theo thể loại
+	filter := bson.M{"genres": genre}
+	cursor, err := storyCollection.Find(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể truy vấn truyện"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var stories []models.Story
+	if err := cursor.All(ctx, &stories); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi đọc dữ liệu"})
+		return
+	}
+
+	// Trả về kết quả truy vấn
+	c.JSON(http.StatusOK, stories)
+}

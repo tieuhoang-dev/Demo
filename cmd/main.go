@@ -27,7 +27,7 @@ func main() {
 	r := gin.Default()
 	// Cấu hình CORS
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"}, // Cho phép FE
+		AllowOrigins:     []string{"*"}, // Cho phép FE
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
 		ExposeHeaders:    []string{"Content-Length"},
