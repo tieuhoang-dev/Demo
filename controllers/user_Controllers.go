@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
+
 )
 
 func RegisterUser(c *gin.Context) {
@@ -90,10 +91,46 @@ func GetCurrentUser(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	username, _ := c.Get("username")
 	role, _ := c.Get("user_role")
+	created_at, _ := c.Get("created_at")
+	status, _ := c.Get("status")
 
 	c.JSON(http.StatusOK, gin.H{
 		"user_id":  userID,
 		"username": username,
 		"role":     role,
+		"created_at": created_at,
+		"status":   status,
 	})
+}
+
+// API handler để lấy truyện của người dùng
+func GetUserStories(c *gin.Context) {
+    userIDVal, exists := c.Get("user_id")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Chưa đăng nhập"})
+        return
+    }
+
+    userID, ok := userIDVal.(primitive.ObjectID)
+    if !ok {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "ID người dùng không hợp lệ"})
+        return
+    }
+
+    // Truy vấn MongoDB để lấy danh sách truyện của người dùng
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    var stories []models.Story
+    cursor, err := config.MongoDB.Collection("Stories").Find(ctx, bson.M{"created_by": userID})
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy truyện"})
+        return
+    }
+    if err := cursor.All(ctx, &stories); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy dữ liệu truyện"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"stories": stories})
 }

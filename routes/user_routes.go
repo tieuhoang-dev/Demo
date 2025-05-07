@@ -20,5 +20,6 @@ func UserRoutes(router *gin.Engine) {
 	protected.Use(middlewares.AuthMiddleware())
 	{
 		protected.GET("/me", controllers.GetCurrentUser)
+		protected.GET("/stories", controllers.GetUserStories)
 	}
 }

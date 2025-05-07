@@ -27,9 +27,9 @@ func main() {
 	r := gin.Default()
 	// Cấu hình CORS
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"}, // Cho phép FE
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+		AllowOrigins:     []string{"*"}, // Cho phép mọi domain, tạm thời
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
