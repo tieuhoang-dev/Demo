@@ -35,3 +35,7 @@ type Story struct {
 	DeletedAt     *time.Time         `bson:"deleted_at,omitempty" json:"deleted_at,omitempty"`
 	CreatedBy     primitive.ObjectID `bson:"created_by" json:"created_by"`
 }
+type StoryWithLatestChapter struct {
+	Story
+	LatestChapter *Chapter `json:"latest_chapter,omitempty"`
+}

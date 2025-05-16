@@ -27,13 +27,14 @@ func main() {
 	r := gin.Default()
 	// Cấu hình CORS
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"}, // Cho phép mọi domain, tạm thời
+		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+
 	// Gắn các routes
 	routes.StoryRoutes(r)
 	routes.ChapterRoutes(r)

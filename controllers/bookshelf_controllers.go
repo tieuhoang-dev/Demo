@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"Truyen_BE/config"
-	"Truyen_BE/models"
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,106 +12,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
-
-func AddToBookshelf(c *gin.Context) {
-	// 1. Lấy user_id từ context (middleware đã gán)
-	userIDValue, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy user trong context"})
-		return
-	}
-	userID := userIDValue.(primitive.ObjectID)
-
-	// 2. Nhận dữ liệu từ body
-	var input struct {
-		StoryID       string `json:"story_id"`
-		LastChapterID string `json:"last_chapter_id,omitempty"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil || input.StoryID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu hoặc sai định dạng story_id"})
-		return
-	}
-
-	// 3. Chuyển story_id sang ObjectID
-	storyObjectID, err := primitive.ObjectIDFromHex(input.StoryID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "story_id không hợp lệ"})
-		return
-	}
-
-	// Khởi tạo context
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Kiểm tra xem chương có thuộc truyện không
-	chapterCollection := config.MongoDB.Collection("Chapters")
-	var chapter models.Chapter
-
-	// Cần khai báo lastChapterObjectID nếu sử dụng
-	lastChapterObjectID := primitive.NilObjectID // Nếu không có chapter thì để NilObjectID, hoặc dùng ID cụ thể nếu cần
-	if input.LastChapterID != "" {
-		lastChapterObjectID, err = primitive.ObjectIDFromHex(input.LastChapterID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "last_chapter_id không hợp lệ"})
-			return
-		}
-	}
-
-	// Kiểm tra xem chương có thuộc truyện không
-	err = chapterCollection.FindOne(ctx, bson.M{
-		"_id":      lastChapterObjectID,
-		"story_id": storyObjectID,
-	}).Decode(&chapter)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Chương không thuộc truyện đã chọn"})
-		return
-	}
-
-	// 4. Tạo đối tượng BookshelfItem
-	item := models.BookshelfItem{
-		UserID:    userID,
-		StoryID:   storyObjectID,
-		ChapterID: primitive.NilObjectID, // Mặc định là nil nếu không có chapter
-		AddedAt:   time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	// 5. Nếu có chương đang đọc thì lưu lại
-	if input.LastChapterID != "" {
-		lastChapterObjID, err := primitive.ObjectIDFromHex(input.LastChapterID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "last_chapter_id không hợp lệ"})
-			return
-		}
-		item.ChapterID = lastChapterObjID
-	}
-
-	// 6. Kiểm tra nếu đã có trong tủ sách rồi
-	collection := config.MongoDB.Collection("Bookshelf")
-	var existing models.BookshelfItem
-	err = collection.FindOne(ctx, bson.M{
-		"user_id":  userID,
-		"story_id": storyObjectID,
-	}).Decode(&existing)
-	if err == nil {
-		// Nếu err == nil có nghĩa là đã tìm thấy một item, nên trả về lỗi Conflict
-		c.JSON(http.StatusConflict, gin.H{"error": "Truyện này đã có trong tủ sách"})
-		return
-	} else if err != mongo.ErrNoDocuments {
-		// Kiểm tra nếu lỗi không phải là "NoDocuments" (không tìm thấy bản ghi), tức là có lỗi khác
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi tìm kiếm trong tủ sách"})
-		return
-	}
-
-	// 7. Thêm mới
-	_, err = collection.InsertOne(ctx, item)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể thêm vào tủ sách"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã thêm truyện vào tủ sách"})
-}
 
 func RemoveFromBookshelf(c *gin.Context) {
 	// 1. Lấy user_id từ context (middleware đã gán)
@@ -122,17 +22,15 @@ func RemoveFromBookshelf(c *gin.Context) {
 	}
 	userID := userIDValue.(primitive.ObjectID)
 
-	// 2. Nhận dữ liệu từ body
-	var input struct {
-		StoryID string `json:"story_id"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil || input.StoryID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu hoặc sai định dạng story_id"})
+	// 2. Nhận story_id từ URL
+	storyID := c.Param("story_id")
+	if storyID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thiếu story_id trong URL"})
 		return
 	}
 
 	// 3. Chuyển story_id sang ObjectID
-	storyObjectID, err := primitive.ObjectIDFromHex(input.StoryID)
+	storyObjectID, err := primitive.ObjectIDFromHex(storyID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "story_id không hợp lệ"})
 		return
@@ -159,9 +57,9 @@ func RemoveFromBookshelf(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã xóa truyện khỏi tủ sách"})
 }
-func GetBookshelf(c *gin.Context) {
 
-	// 1. Lấy user_id từ context (middleware đã gán)
+func GetBookshelf(c *gin.Context) {
+	// Lấy thông tin userID từ context
 	userIDValue, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy user trong context"})
@@ -169,26 +67,100 @@ func GetBookshelf(c *gin.Context) {
 	}
 	userID := userIDValue.(primitive.ObjectID)
 
-	// 2. Lấy danh sách truyện trong tủ sách
+	// Lấy các tham số phân trang và sắp xếp từ query params
+	page := c.DefaultQuery("page", "1")
+	limit := c.DefaultQuery("limit", "10")
+	sortBy := c.DefaultQuery("sortBy", "updated_at")
+	sortOrder := c.DefaultQuery("sortOrder", "-1")
+
+	// Chuyển đổi các giá trị query thành kiểu phù hợp
+	pageInt, err := strconv.Atoi(page)
+	if err != nil || pageInt < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Trang không hợp lệ"})
+		return
+	}
+	limitInt, err := strconv.Atoi(limit)
+	if err != nil || limitInt < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Số lượng kết quả không hợp lệ"})
+		return
+	}
+	sortOrderInt, err := strconv.Atoi(sortOrder)
+	if err != nil || (sortOrderInt != 1 && sortOrderInt != -1) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thứ tự sắp xếp không hợp lệ"})
+		return
+	}
+
 	collection := config.MongoDB.Collection("Bookshelf")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := collection.Find(ctx, bson.M{"user_id": userID})
+	// Xây dựng pipeline cho aggregation
+	pipeline := mongo.Pipeline{
+		// Lọc theo user_id
+		{{Key: "$match", Value: bson.D{{Key: "user_id", Value: userID}}}},
+
+		// Join với collection "stories"
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "Stories"},
+			{Key: "localField", Value: "story_id"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "story"},
+		}}},
+
+		{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$story"}, {Key: "preserveNullAndEmptyArrays", Value: true}}}},
+
+		// Join với collection "chapters"
+		{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "Chapters"},
+			{Key: "localField", Value: "last_chapter_id"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "chapter"},
+		}}},
+
+		{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$chapter"}, {Key: "preserveNullAndEmptyArrays", Value: true}}}},
+
+		// Kiểm tra và thay thế null hoặc giá trị không hợp lệ cho trường "updated_at"
+		{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "story_id", Value: "$story._id"},
+			{Key: "story_title", Value: "$story.title"},
+			{Key: "last_chapter_id", Value: "$chapter._id"},
+			{Key: "chapter_number", Value: "$chapter.chapter_number"},
+			{Key: "chapter_title", Value: "$chapter.title"},
+			{Key: "added_at", Value: 1},
+			{Key: "updated_at", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$updated_at", "2025-04-22"}}}}, // Giá trị mặc định nếu null
+		}}},
+
+		// Thêm sắp xếp theo trường "sortBy" và "sortOrder"
+		{{Key: "$sort", Value: bson.D{{Key: sortBy, Value: sortOrderInt}}}},
+	}
+
+	// Thêm phân trang vào pipeline
+	skip := (pageInt - 1) * limitInt
+	pipeline = append(pipeline, bson.D{{Key: "$skip", Value: skip}}, bson.D{{Key: "$limit", Value: limitInt}})
+
+	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy tủ sách"})
 		return
 	}
 	defer cursor.Close(ctx)
 
-	var items []models.BookshelfItem
-	if err = cursor.All(ctx, &items); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy tủ sách"})
+	var result []bson.M
+	if err = cursor.All(ctx, &result); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi xử lý kết quả"})
 		return
 	}
 
-	c.JSON(http.StatusOK, items)
+	// Nếu không có kết quả, trả về mảng rỗng
+	if len(result) == 0 {
+		c.JSON(http.StatusOK, []bson.M{})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
+
 func UpdateLastChapter(c *gin.Context) {
 	// 1. Lấy user_id từ context (middleware đã gán)
 	userIDValue, exists := c.Get("user_id")
@@ -219,22 +191,52 @@ func UpdateLastChapter(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "last_chapter_id không hợp lệ"})
 		return
 	}
-	// 4. Cập nhật chương cuối trong tủ sách
+
+	// 4. Kiểm tra xem câu chuyện đã có trong tủ sách chưa
 	collection := config.MongoDB.Collection("Bookshelf")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	var bookshelfItem bson.M
+	err = collection.FindOne(ctx, bson.M{
+		"user_id":  userID,
+		"story_id": storyObjectID,
+	}).Decode(&bookshelfItem)
+
+	// Nếu không có, thêm mới vào tủ sách
+	if err == mongo.ErrNoDocuments {
+		_, err = collection.InsertOne(ctx, bson.M{
+			"user_id":         userID,
+			"story_id":        storyObjectID,
+			"chapter_id":      lastChapterObjectID,
+			"added_at":        time.Now(),
+			"updated_at":      time.Now(),
+			"last_chapter_id": lastChapterObjectID,
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể thêm câu chuyện vào tủ sách"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "✅ Đã thêm câu chuyện vào tủ sách"})
+		return
+	}
+
+	// Nếu có, cập nhật lại last_chapter_id
 	_, err = collection.UpdateOne(ctx, bson.M{
 		"user_id":  userID,
 		"story_id": storyObjectID,
 	}, bson.M{
 		"$set": bson.M{
-			"chapter_id": lastChapterObjectID,
-			"updated_at": time.Now(),
+			"chapter_id":      lastChapterObjectID,
+			"last_chapter_id": lastChapterObjectID, // thêm dòng này
+			"updated_at":      time.Now(),
 		},
 	})
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể cập nhật chương cuối"})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Đã cập nhật chương cuối"})
 }

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -67,7 +69,10 @@ func InsertChapter(c *gin.Context) {
 	// Tăng chapters_count cho truyện tương ứng
 	_, _ = storyCollection.UpdateOne(ctx,
 		bson.M{"_id": newChapter.StoryID},
-		bson.M{"$inc": bson.M{"chapters_count": 1}},
+		bson.M{
+			"$inc": bson.M{"chapters_count": 1},
+			"$set": bson.M{"updated_at": time.Now()},
+		},
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -263,5 +268,149 @@ func GetChapterByID(c *gin.Context) {
 		"chapter":  chapter,
 		"previous": previousChapter,
 		"next":     nextChapter,
+	})
+}
+func GetNewestChapters(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	chapterCollection := config.MongoDB.Collection("Chapters")
+	storyCollection := config.MongoDB.Collection("Stories")
+
+	// Tìm 5 chương mới nhất
+	cursor, err := chapterCollection.Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}).SetLimit(5))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy danh sách chương"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var chapters []models.Chapter
+	if err = cursor.All(ctx, &chapters); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy danh sách chương"})
+		return
+	}
+
+	// Lấy thông tin truyện tương ứng với các chương
+	for i := range chapters {
+		var story models.Story
+		err = storyCollection.FindOne(ctx, bson.M{"_id": chapters[i].StoryID}).Decode(&story)
+		if err == nil {
+			chapters[i].Title = story.Title // Gán tiêu đề truyện vào chương
+		}
+	}
+
+	c.JSON(http.StatusOK, chapters)
+}
+func InsertComment(c *gin.Context) {
+	var comment models.Comment
+	if err := c.ShouldBindJSON(&comment); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Lỗi dữ liệu đầu vào"})
+		return
+	}
+
+	// Lấy user_id từ context (middleware đã gán)
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Chưa đăng nhập"})
+		return
+	}
+	comment.UserID = userIDVal.(primitive.ObjectID)
+
+	// Validate nội dung
+	comment.Content = strings.TrimSpace(comment.Content)
+	if comment.Content == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nội dung không được để trống"})
+		return
+	}
+	if len(comment.Content) > 1000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nội dung quá dài"})
+		return
+	}
+
+	// Kiểm tra Chapter & Story tồn tại
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := config.MongoDB.Collection("Stories").FindOne(ctx, bson.M{"_id": comment.StoryID}).Err(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Truyện không tồn tại"})
+		return
+	}
+	if err := config.MongoDB.Collection("Chapters").FindOne(ctx, bson.M{"_id": comment.ChapterID}).Err(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Chương không tồn tại"})
+		return
+	}
+
+	// Insert
+	comment.ID = primitive.NewObjectID()
+	comment.CreatedAt = time.Now()
+	comment.UpdatedAt = time.Now()
+
+	_, err := config.MongoDB.Collection("Comments").InsertOne(ctx, comment)
+	if err != nil {
+		log.Printf("❌ Lỗi khi chèn bình luận: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể thêm bình luận"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "✅ Đã thêm bình luận",
+		"comment": gin.H{
+			"id":         comment.ID.Hex(),
+			"content":    comment.Content,
+			"chapter_id": comment.ChapterID.Hex(),
+			"story_id":   comment.StoryID.Hex(),
+			"user_id":    comment.UserID.Hex(),
+			"created_at": comment.CreatedAt,
+		},
+	})
+}
+func GetCommentsByChapterID(c *gin.Context) {
+	chapterIDStr := c.Param("chapter_id")
+	chapterID, err := primitive.ObjectIDFromHex(chapterIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID chương không hợp lệ"})
+		return
+	}
+
+	// Phân trang
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	skip := (page - 1) * limit
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	commentCollection := config.MongoDB.Collection("Comments")
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "created_at", Value: 1}}).
+		SetSkip(int64(skip)).
+		SetLimit(int64(limit))
+
+	cursor, err := commentCollection.Find(ctx, bson.M{"chapter_id": chapterID}, opts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy danh sách bình luận"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var comments []models.Comment
+	if err = cursor.All(ctx, &comments); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi xử lý bình luận"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"chapter_id": chapterID.Hex(),
+		"page":       page,
+		"limit":      limit,
+		"comments":   comments,
 	})
 }

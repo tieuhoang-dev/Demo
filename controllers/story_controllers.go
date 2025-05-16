@@ -563,3 +563,53 @@ func GetAllStoriesOfGenre(c *gin.Context) {
 	// Trả về kết quả truy vấn
 	c.JSON(http.StatusOK, stories)
 }
+func GetNewestUpdatedStoryList(c *gin.Context) {
+	storyCollection := config.MongoDB.Collection("Stories")
+	chapterCollection := config.MongoDB.Collection("Chapters")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	limit64 := int64(limit)
+
+	findOptions := options.Find().
+		SetSort(bson.D{{Key: "updated_at", Value: -1}}).
+		SetLimit(limit64)
+
+	cursor, err := storyCollection.Find(ctx, bson.M{}, findOptions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể truy vấn truyện mới nhất"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var stories []models.Story
+	if err := cursor.All(ctx, &stories); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi đọc dữ liệu"})
+		return
+	}
+
+	var result []models.StoryWithLatestChapter
+
+	for _, story := range stories {
+		var latestChapter models.Chapter
+		err := chapterCollection.FindOne(ctx,
+			bson.M{"story_id": story.ID},
+			options.FindOne().SetSort(bson.D{{Key: "created_at", Value: -1}}),
+		).Decode(&latestChapter)
+
+		storyWithChapter := models.StoryWithLatestChapter{
+			Story:         story,
+			LatestChapter: nil,
+		}
+
+		if err == nil {
+			storyWithChapter.LatestChapter = &latestChapter
+		}
+
+		result = append(result, storyWithChapter)
+	}
+
+	c.JSON(http.StatusOK, result)
+}
