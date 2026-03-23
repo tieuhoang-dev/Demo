@@ -21,15 +21,33 @@ func GetStories(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+
+	skip := int64((page - 1) * limit)
+	limit64 := int64(limit)
+
 	filter := bson.M{
 		"is_hidden": false,
 		"is_banned": false,
 	}
-	cursor, err := storyCollection.Find(ctx, filter)
+
+	findOptions := options.Find().SetSkip(skip).SetLimit(limit64)
+	total, _ := storyCollection.CountDocuments(ctx, filter)
+
+	cursor, err := storyCollection.Find(ctx, filter, findOptions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi truy vấn MongoDB"})
 		return
 	}
+	defer cursor.Close(ctx)
 
 	var stories []models.Story
 	if err := cursor.All(ctx, &stories); err != nil {
@@ -37,7 +55,12 @@ func GetStories(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, stories)
+	c.JSON(http.StatusOK, gin.H{
+		"page":    page,
+		"limit":   limit,
+		"total":   total,
+		"stories": stories,
+	})
 }
 
 // GET /stories/search?name=abc
@@ -86,7 +109,7 @@ func InsertStory(c *gin.Context) {
 	newStory.IsBanned = false
 	newStory.DeletedAt = nil
 	newStory.CreatedBy = c.MustGet("user_id").(primitive.ObjectID)
-	newStory.Status = "active" 
+	newStory.Status = "active"
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	val, exists := c.Get("user_id")
