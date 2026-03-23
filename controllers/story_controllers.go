@@ -86,7 +86,7 @@ func InsertStory(c *gin.Context) {
 	newStory.IsBanned = false
 	newStory.DeletedAt = nil
 	newStory.CreatedBy = c.MustGet("user_id").(primitive.ObjectID)
-	newStory.Status = "active" // Hoặc trạng thái mặc định khác
+	newStory.Status = "active" 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	val, exists := c.Get("user_id")
@@ -153,21 +153,18 @@ func DeleteStory(c *gin.Context) {
 	storyCollection := config.MongoDB.Collection("Stories")
 	chapterCollection := config.MongoDB.Collection("Chapters")
 	bookshelfCollection := config.MongoDB.Collection("Bookshelf")
-	// Xoá truyện trong tủ sách
 	_, err = bookshelfCollection.DeleteMany(ctx, bson.M{"story_id": objectID})
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Không thể xoá truyện trong tủ sách"})
 		return
 	}
 
-	// Xoá các chương trước
 	_, err = chapterCollection.DeleteMany(ctx, bson.M{"story_id": objectID})
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Không thể xoá các chương"})
 		return
 	}
 
-	// Xoá truyện
 	result, err := storyCollection.DeleteOne(ctx, bson.M{"_id": objectID})
 	if err != nil || result.DeletedCount == 0 {
 		c.JSON(500, gin.H{"error": "Không thể xoá truyện"})

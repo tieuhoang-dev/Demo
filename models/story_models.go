@@ -23,8 +23,8 @@ type Story struct {
 	Author        string             `bson:"author" json:"author"`
 	Description   string             `bson:"description" json:"description"`
 	CoverURL      string             `bson:"cover_url" json:"cover_url"`
-	Genres        []string           `bson:"genres" json:"genres"` // Ví dụ: ["Tiên hiệp", "Hài hước"]
-	Status        string             `bson:"status" json:"status"` // "ongoing", "completed"
+	Genres        []string           `bson:"genres" json:"genres"` 
+	Status        string             `bson:"status" json:"status"` 
 	ChaptersCount int                `bson:"chapters_count" json:"chapters_count"`
 	ViewCount     int64              `bson:"view_count" json:"view_count"`
 	IsFeatured    bool               `bson:"is_featured" json:"is_featured"`

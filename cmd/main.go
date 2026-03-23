@@ -3,8 +3,10 @@ package main
 import (
 	"Truyen_BE/config"
 	"Truyen_BE/routes"
+	"Truyen_BE/utils"
 	"log"
 	"os"
+	"path/filepath"
 
 	"time"
 
@@ -41,6 +43,9 @@ func main() {
 	routes.ChapterRoutes(r)
 	routes.UserRoutes(r)
 	routes.BookshelfRoutes(r)
+	uploadDir, _ := filepath.Abs("./uploads")
+	r.Static("/static", uploadDir)
+	r.POST("/upload", utils.UploadImage)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
