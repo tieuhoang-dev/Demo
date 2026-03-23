@@ -18,6 +18,7 @@ import (
 // GET /stories
 func GetStories(c *gin.Context) {
 	storyCollection := config.MongoDB.Collection("Stories")
+	chapterCollection := config.MongoDB.Collection("Chapters")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -55,11 +56,35 @@ func GetStories(c *gin.Context) {
 		return
 	}
 
+	type StoryResponse struct {
+		models.Story    `bson:",inline"`
+		LatestChapterID string `json:"latest_chapter_id"`
+	}
+
+	var results []StoryResponse
+	for _, story := range stories {
+		var latestChapter models.Chapter
+		err := chapterCollection.FindOne(ctx,
+			bson.M{"story_id": story.ID},
+			options.FindOne().SetSort(bson.D{{Key: "created_at", Value: -1}}),
+		).Decode(&latestChapter)
+
+		latestChapterID := ""
+		if err == nil {
+			latestChapterID = latestChapter.ID.Hex()
+		}
+
+		results = append(results, StoryResponse{
+			Story:           story,
+			LatestChapterID: latestChapterID,
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"page":    page,
 		"limit":   limit,
 		"total":   total,
-		"stories": stories,
+		"stories": results,
 	})
 }
 
