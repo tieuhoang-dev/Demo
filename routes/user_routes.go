@@ -8,14 +8,12 @@ import (
 )
 
 func UserRoutes(router *gin.Engine) {
-	// Không cần đăng nhập
 	public := router.Group("/users")
 	{
 		public.POST("/register", controllers.RegisterUser)
 		public.POST("/auth/login", controllers.LoginUser)
 	}
 
-	// Cần đăng nhập
 	protected := router.Group("/users")
 	protected.Use(middlewares.AuthMiddleware())
 	{

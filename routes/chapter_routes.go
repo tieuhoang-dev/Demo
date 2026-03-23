@@ -11,11 +11,9 @@ func ChapterRoutes(router *gin.Engine) {
 	chapterGroup := router.Group("/stories/chapters")
 	chapterGroup.Use(middlewares.LoggingMiddleware)
 	{
-		// ✅ Public – đọc chương
 		chapterGroup.GET("/:story_id/:number", controllers.GetChapterByStoryAndNumber)
 		chapterGroup.GET("/id/:id", controllers.GetChapterByID)
 		chapterGroup.GET("/newest", controllers.GetNewestChapters)
-		// ✅ Yêu cầu đăng nhập + phân quyền tác giả của truyện/chương
 		chapterGroup.POST("",
 			middlewares.AuthMiddleware(),
 			middlewares.IsAuthorOfStory(),
@@ -23,7 +21,7 @@ func ChapterRoutes(router *gin.Engine) {
 
 		chapterGroup.PUT("/:id",
 			middlewares.AuthMiddleware(),
-			middlewares.IsAuthorOfChapter(), // kiểm tra chương thuộc truyện của user
+			middlewares.IsAuthorOfChapter(), 
 			controllers.UpdateChapter)
 
 		chapterGroup.DELETE("/:id",

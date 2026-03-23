@@ -4,6 +4,7 @@ import (
 	"Truyen_BE/config"
 	"Truyen_BE/routes"
 	"log"
+	"os"
 
 	"time"
 
@@ -22,15 +23,15 @@ func main() {
 	if config.MongoDB == nil {
 		log.Fatal("❌ Kết nối MongoDB không thành công!")
 	}
-
+	var FE_URL = os.Getenv("FE_URL")
 	// Khởi tạo Gin
 	r := gin.Default()
 	// Cấu hình CORS
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     []string{FE_URL},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept", "X-Requested-With"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -40,7 +41,6 @@ func main() {
 	routes.ChapterRoutes(r)
 	routes.UserRoutes(r)
 	routes.BookshelfRoutes(r)
-	// Chạy server tại cổng PORT từ .env
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal("❌ Lỗi khi chạy server:", err)
 	}

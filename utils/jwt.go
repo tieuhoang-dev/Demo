@@ -1,12 +1,13 @@
 package utils
 
 import (
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("your-secret-key") // có thể chuyển vào ENV sau này
+var jwtSecret = os.Getenv("JWT_SECRET")
 
 func GenerateToken(userID string, role string) (string, error) {
 	claims := jwt.MapClaims{

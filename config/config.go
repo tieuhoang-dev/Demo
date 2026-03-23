@@ -33,16 +33,13 @@ func ConnectDB() {
 	uri := os.Getenv("MONGO_URI")
 	dbName := os.Getenv("DB_NAME")
 
-	// Tạo context KHÔNG có timeout, vì client cần sống suốt runtime
 	ctx := context.Background()
 
-	// Kết nối MongoDB
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
 		log.Fatal("❌ Lỗi kết nối MongoDB:", err)
 	}
 
-	// Kiểm tra kết nối
 	ctxPing, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

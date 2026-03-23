@@ -47,7 +47,6 @@ func InsertChapter(c *gin.Context) {
 	chapterCollection := config.MongoDB.Collection("Chapters")
 	storyCollection := config.MongoDB.Collection("Stories")
 
-	// 🔢 Lấy số chương hiện có trong truyện
 	chapterCount, err := chapterCollection.CountDocuments(ctx, bson.M{"story_id": newChapter.StoryID})
 	if err != nil {
 		log.Printf("❌ Lỗi khi đếm số chương: %v", err)
@@ -55,10 +54,8 @@ func InsertChapter(c *gin.Context) {
 		return
 	}
 
-	// Gán số chương mới
 	newChapter.ChapterNumber = int(chapterCount) + 1
 
-	// Insert chương
 	_, err = chapterCollection.InsertOne(ctx, newChapter)
 	if err != nil {
 		log.Printf("❌ Lỗi khi chèn chương: %v", err)
@@ -66,7 +63,6 @@ func InsertChapter(c *gin.Context) {
 		return
 	}
 
-	// Tăng chapters_count cho truyện tương ứng
 	_, _ = storyCollection.UpdateOne(ctx,
 		bson.M{"_id": newChapter.StoryID},
 		bson.M{
@@ -187,9 +183,7 @@ func GetChapterByStoryAndNumber(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy chương hoặc chương đã bị ẩn/bị cấm"})
 		return
 	}
-	//tăng view cho chương
 	_, _ = chapterCollection.UpdateOne(ctx, bson.M{"_id": chapter.ID}, bson.M{"$inc": bson.M{"view_count": 1}})
-	// Tăng view_count cho truyện tương ứng
 	storyCollection := config.MongoDB.Collection("Stories")
 	_, _ = storyCollection.UpdateOne(ctx,
 		bson.M{"_id": chapter.StoryID},
@@ -213,7 +207,6 @@ func GetChapterByID(c *gin.Context) {
 	chapterCollection := config.MongoDB.Collection("Chapters")
 	storyCollection := config.MongoDB.Collection("Stories")
 
-	// Tăng view_count và lấy chương hiện tại
 	var chapter models.Chapter
 	err = chapterCollection.FindOneAndUpdate(
 		ctx,
@@ -237,7 +230,6 @@ func GetChapterByID(c *gin.Context) {
 		return
 	}
 
-	// Tìm chương trước
 	var previousChapter *models.Chapter = nil
 	previousFilter := bson.M{
 		"story_id":       chapter.StoryID,
@@ -250,7 +242,6 @@ func GetChapterByID(c *gin.Context) {
 		previousChapter = &tempPrev
 	}
 
-	// Tìm chương sau
 	var nextChapter *models.Chapter = nil
 	nextFilter := bson.M{
 		"story_id":       chapter.StoryID,
@@ -263,7 +254,6 @@ func GetChapterByID(c *gin.Context) {
 		nextChapter = &tempNext
 	}
 
-	// Trả về dữ liệu
 	c.JSON(http.StatusOK, gin.H{
 		"chapter":  chapter,
 		"previous": previousChapter,
@@ -277,7 +267,6 @@ func GetNewestChapters(c *gin.Context) {
 	chapterCollection := config.MongoDB.Collection("Chapters")
 	storyCollection := config.MongoDB.Collection("Stories")
 
-	// Tìm 5 chương mới nhất
 	cursor, err := chapterCollection.Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}).SetLimit(5))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không thể lấy danh sách chương"})
@@ -291,12 +280,11 @@ func GetNewestChapters(c *gin.Context) {
 		return
 	}
 
-	// Lấy thông tin truyện tương ứng với các chương
 	for i := range chapters {
 		var story models.Story
 		err = storyCollection.FindOne(ctx, bson.M{"_id": chapters[i].StoryID}).Decode(&story)
 		if err == nil {
-			chapters[i].Title = story.Title // Gán tiêu đề truyện vào chương
+			chapters[i].Title = story.Title 
 		}
 	}
 
@@ -309,7 +297,6 @@ func InsertComment(c *gin.Context) {
 		return
 	}
 
-	// Lấy user_id từ context (middleware đã gán)
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Chưa đăng nhập"})
@@ -317,7 +304,6 @@ func InsertComment(c *gin.Context) {
 	}
 	comment.UserID = userIDVal.(primitive.ObjectID)
 
-	// Validate nội dung
 	comment.Content = strings.TrimSpace(comment.Content)
 	if comment.Content == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Nội dung không được để trống"})
@@ -328,7 +314,6 @@ func InsertComment(c *gin.Context) {
 		return
 	}
 
-	// Kiểm tra Chapter & Story tồn tại
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -341,7 +326,7 @@ func InsertComment(c *gin.Context) {
 		return
 	}
 
-	// Insert
+	
 	comment.ID = primitive.NewObjectID()
 	comment.CreatedAt = time.Now()
 	comment.UpdatedAt = time.Now()
