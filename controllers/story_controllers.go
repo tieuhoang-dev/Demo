@@ -59,6 +59,7 @@ func GetStories(c *gin.Context) {
 	type StoryResponse struct {
 		models.Story    `bson:",inline"`
 		LatestChapterID string `json:"latest_chapter_id"`
+		LatestChapterTitle string `json:"latest_chapter_title"`
 	}
 
 	var results []StoryResponse
@@ -70,13 +71,16 @@ func GetStories(c *gin.Context) {
 		).Decode(&latestChapter)
 
 		latestChapterID := ""
+		latestChapterTitle := ""
 		if err == nil {
 			latestChapterID = latestChapter.ID.Hex()
+			latestChapterTitle = latestChapter.Title
 		}
 
 		results = append(results, StoryResponse{
 			Story:           story,
 			LatestChapterID: latestChapterID,
+			LatestChapterTitle: latestChapterTitle,
 		})
 	}
 
