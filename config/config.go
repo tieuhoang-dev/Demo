@@ -18,17 +18,18 @@ var MongoDB *mongo.Database
 func LoadEnv() {
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatal("❌ Không thể lấy thư mục hiện tại:", err)
+		log.Println("❌ Không thể lấy thư mục hiện tại:", err)
+	} else {
+		fmt.Println("📂 Đang chạy tại thư mục:", dir)
 	}
-	fmt.Println("📂 Đang chạy tại thư mục:", dir)
 
 	err = godotenv.Load()
 	if err != nil {
-		log.Fatal("❌ Không thể load file .env:", err)
+		log.Println("⚠️ Không tìm thấy .env → dùng ENV của hệ thống")
+	} else {
+		fmt.Println("✅ Đã load file .env")
 	}
-	fmt.Println("✅ Đã load file .env")
 }
-
 func ConnectDB() {
 	uri := os.Getenv("MONGO_URI")
 	dbName := os.Getenv("DB_NAME")
