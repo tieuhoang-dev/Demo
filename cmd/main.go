@@ -41,7 +41,11 @@ func main() {
 	routes.ChapterRoutes(r)
 	routes.UserRoutes(r)
 	routes.BookshelfRoutes(r)
-	if err := r.Run(":8080"); err != nil {
-		log.Fatal("❌ Lỗi khi chạy server:", err)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+
+	r.Run(":" + port)
+	log.Fatal(r.Run(port))
 }
