@@ -6,6 +6,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -14,8 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
-
-var jwtSecret = []byte("your-secret-key") // nên dùng từ ENV
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -26,6 +25,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+		jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 
 		// 2. Parse token
 		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
